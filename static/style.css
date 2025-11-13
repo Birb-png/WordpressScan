@@ -1,0 +1,237 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
+:root {
+    --bg-dark: #0d1a2d;
+    --bg-medium: #172a45;
+    --text-light: #ccd6f6;
+    --text-medium: #8892b0;
+    --accent: #3b82f6; /* Blue accent */
+    --success: #34d399; /* Green */
+    --error: #ef4444; /* Red */
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-dark);
+    color: var(--text-light);
+    line-height: 1.6;
+    position: relative;
+    overflow-x: hidden;
+    min-height: 100vh;
+}
+
+/* --- Abstract Wave Backgrounds --- */
+body::before,
+body::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    width: 200vw;
+    height: 200vw;
+    background-color: var(--bg-medium);
+    z-index: -1;
+    opacity: 0.3;
+}
+
+/* Top-left wave */
+body::before {
+    top: -150vw;
+    transform: translateX(-50%);
+    border-radius: 45%;
+    animation: rotate 30s linear infinite;
+}
+
+/* Bottom-right wave */
+body::after {
+    bottom: -150vw;
+    transform: translateX(-50%);
+    border-radius: 40%;
+    animation: rotate 40s linear infinite reverse;
+}
+
+@keyframes rotate {
+    from { transform: translateX(-50%) rotate(0deg); }
+    to { transform: translateX(-50%) rotate(360deg); }
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem 3rem;
+    max-width: 1200px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+.logo {
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+nav a {
+    color: var(--text-light);
+    text-decoration: none;
+    margin-left: 1.5rem;
+    font-weight: 600;
+    transition: color 0.3s ease;
+}
+
+nav a:hover {
+    color: var(--accent);
+}
+
+main {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 2rem;
+    text-align: center;
+    position: relative;
+    z-index: 1;
+}
+
+.hero h1 {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+}
+
+.hero p {
+    font-size: 1.1rem;
+    color: var(--text-medium);
+    margin-bottom: 2rem;
+}
+
+#scan-form {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+}
+
+#target-url {
+    flex-grow: 1;
+    max-width: 400px;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--bg-medium);
+    border-radius: 6px;
+    background-color: var(--bg-dark);
+    color: var(--text-light);
+    font-size: 1rem;
+}
+
+#scan-button {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 6px;
+    background-color: var(--accent);
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+#scan-button:hover {
+    background-color: #2563eb;
+}
+
+#scan-button:disabled {
+    background-color: var(--text-medium);
+    cursor: not-allowed;
+}
+
+.hidden {
+    display: none;
+}
+
+/* --- Loader --- */
+#loader {
+    border: 4px solid var(--text-medium);
+    border-top: 4px solid var(--accent);
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin: 3rem auto;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* --- Results --- */
+#results-container {
+    margin-top: 3rem;
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.results-card {
+    background-color: var(--bg-medium);
+    border: 1px solid #304561;
+    border-radius: 8px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.results-card h2 {
+    color: var(--accent);
+    border-bottom: 1px solid #304561;
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.results-card p,
+.results-card li {
+    margin-bottom: 0.5rem;
+    color: var(--text-medium);
+}
+
+.results-card strong {
+    color: var(--text-light);
+}
+
+.results-card ul {
+    list-style: none;
+    padding-left: 0;
+}
+
+.results-card li {
+    background-color: var(--bg-dark);
+    padding: 0.75rem;
+    border-radius: 4px;
+}
+
+.success {
+    color: var(--success);
+    font-weight: 600;
+}
+
+.error {
+    color: var(--error);
+    font-weight: 600;
+}
+
+.vuln-item {
+    border-top: 1px solid #304561;
+    padding-top: 1rem;
+    margin-top: 1rem;
+}
+.vuln-item:first-child {
+    border-top: none;
+    padding-top: 0;
+    margin-top: 0;
+}
+
+.vuln-item h3 {
+    font-size: 1.25rem;
+    color: var(--text-light);
+}

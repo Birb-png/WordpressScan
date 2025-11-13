@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WP Security Scanner</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    
+    <style>
+        #scan-form {
+            flex-wrap: wrap; 
+        }
+        #scan-level {
+            padding: 0.75rem 1rem;
+            border: 1px solid var(--bg-medium);
+            border-radius: 6px;
+            background-color: var(--bg-dark);
+            color: var(--text-light);
+            font-size: 1rem;
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* --- NEW CSS FOR THE DOWNLOAD BUTTON --- */
+        #download-button {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 6px;
+            background-color: var(--success); /* Green color */
+            color: #fff;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            margin-top: 1.5rem;
+        }
+        #download-button:hover {
+            background-color: #2f855a;
+        }
+        /* --- END OF NEW CSS --- */
+
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">WPScanner</div>
+        <nav>
+            <a href="/">Scanner</a>
+            <a href="/builder">Builder</a>
+        </nav>
+    </header>
+
+    <main>
+        <div class="hero">
+            <h1>WordPress Security Scanner</h1>
+            <p>Enter a URL to check for WordPress, enumerate plugins, and find vulnerabilities.</p>
+            
+            <form id="scan-form">
+                <input type="text" id="target-url" placeholder="e.g., example.com" required>
+                
+                <select id="scan-level">
+                    <option value="100">Quick Scan (Top 100)</option>
+                    <option value="1000" selected>Standard Scan (Top 1000)</option>
+                    <option value="10000">Deep Scan (Top 10000)</option>
+                    <option value="-1">Full List (All)</option>
+                </select>
+                
+                <button type="submit" id="scan-button">Start Scan</button>
+            </form>
+        </div>
+
+        <button id="download-button" class="hidden">Download Results (output.txt)</button>
+
+        <div id="loader" class="hidden"></div>
+
+        <div id="results-container" class="hidden">
+            </div>
+    </main>
+
+    <script>
+        const scanForm = document.getElementById('scan-form');
+        const targetUrlInput = document.getElementById('target-url');
+        const scanButton = document.getElementById('scan-button');
+        const loader = document.getElementById('loader');
+        const resultsContainer = document.getElementById('results-container');
+        const scanLevelSelect = document.getElementById('scan-level');
+        const downloadButton = document.getElementById('download-button');
+        let currentScanResults = null; 
+
+        scanForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const targetUrl = targetUrlInput.value;
+            const scanLevel = scanLevelSelect.value;
+            loader.classList.remove('hidden');
+            resultsContainer.classList.add('hidden');
+            downloadButton.classList.add('hidden'); // Hide button on new scan
+            resultsContainer.innerHTML = '';
+            currentScanResults = null; // Clear old results
+
+            scanButton.disabled = true;
+            scanButton.textContent = 'Scanning...';
+
+            try {
+                const response = await fetch('/scan', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        target_url: targetUrl,
+                        scan_level: parseInt(scanLevel, 10)
+                    })
+                });
+
+                const results = await response.json();
+                
+                // --- NEW: Save results and show button ---
+                currentScanResults = results; // Save for download
+                if (results && !results.error) {
+                    downloadButton.classList.remove('hidden'); // Show download button
+                }
+                // --- END OF NEW ---
+
+                renderResults(results);
+
+            } catch (error) {
+                resultsContainer.innerHTML = `<div class="results-card error"><pre>${error}</pre></div>`;
+            } finally {
+                loader.classList.add('hidden');
+                resultsContainer.classList.remove('hidden');
+                scanButton.disabled = false;
+                scanButton.textContent = 'Start Scan';
+            }
+        });
+
+        // --- NEW: Function to handle the download ---
+        function downloadResults() {
+            if (!currentScanResults) {
+                alert("No results to download.");
+                return;
+            }
+
+            // Convert the JSON object to a string (with nice formatting)
+            const dataStr = JSON.stringify(currentScanResults, null, 2);
+
+            // Create a Blob (file in memory)
+            const blob = new Blob([dataStr], { type: 'text/plain' });
+
+            // Create a temporary link to trigger the download
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'output.txt'; // The filename you wanted
+
+            // Click the link and clean up
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
+        }
+
+        // --- NEW: Add the click listener to the button ---
+        downloadButton.addEventListener('click', downloadResults);
+
+
+        function renderResults(data) {
+            // (This function does not need to change)
+            if (data.error) {
+                resultsContainer.innerHTML = `<div class="results-card error"><strong>Error:</strong> ${data.error}</div>`;
+                return;
+            }
+            let html = '';
+            const wp = data.wp_check;
+            html += `
+                <div class="results-card">
+                    <h2>Site Information</h2>
+                    <p><strong>URL:</strong> ${wp.url}</p>
+                    <p><strong>Is WordPress:</strong> <span class="${wp.is_wordpress ? 'success' : 'error'}">${wp.is_wordpress}</span></p>
+                    ${wp.is_wordpress ? `
+                        <p><strong>Confidence:</strong> ${wp.confidence}%</p>
+                        <p><strong>Detected Version:</strong> ${wp.wp_version || 'Not found'}</p>
+                        <p><strong>Detection Methods:</strong> ${wp.detected_by.join(', ')}</p>
+                    ` : ''}
+                </div>
+            `;
+            if (data.plugins && data.plugins.total_found > 0) {
+                html += `
+                    <div class="results-card">
+                        <h2>Plugins Found (${data.plugins.total_found})</h2>
+                        <ul>
+                            ${data.plugins.plugins.map(p => `
+                                <li>
+                                    <strong>${p.plugin_slug}</strong>
+                                    (Version: ${p.version || 'unknown'})
+                                    <br>
+                                    <small>Detected by: ${p.detected_by}</small>
+                                </li>
+                            `).join('')}
+                        </ul>
+                    </div>
+                `;
+            } else if (wp.is_wordpress) {
+                 html += `
+                    <div class="results-card">
+                        <h2>Plugins Found</h2>
+                        <p>No plugins were enumerated. The site may be protected.</p>
+                    </div>
+                `;
+            }
+            if (data.vulnerabilities && data.vulnerabilities.length > 0) {
+                 html += `
+                    <div class="results-card">
+                        <h2>Vulnerability Check</h2>
+                        ${data.vulnerabilities.map(v => `
+                            <div class="vuln-item">
+                                <h3>${v.plugin_slug}</h3>
+                                <p><strong>Installed Version:</strong> ${v.version || 'unknown'}</p>
+                                <p><strong>Latest Version:</strong> ${v.latest_version || 'unknown'}</p>
+                                <p><strong>Outdated:</strong> <span class="${v.is_outdated ? 'error' : 'success'}">${v.is_outdated}</span></p>
+                                <p><strong>Source:</strong> ${v.source}</p>
+                                ${v.vulnerabilities.length > 0 ? `
+                                    <h4>Known Vulnerabilities:</h4>
+                                    <ul>
+                                        ${v.vulnerabilities.map(vuln => `
+                                            <li>
+                                                <strong>${vuln.title}</strong>
+                                                ${vuln.cve ? `(CVE: ${vuln.cve})` : ''}
+                                                <br>
+                                                <small>Fixed in: ${vuln.fixed_in || 'N/A'}</small>
+                                            </li>
+                                        `).join('')}
+                                    </ul>
+                                ` : '<p>No specific vulnerabilities found by source.</p>'}
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+
+            resultsContainer.innerHTML = html;
+        }
+    </script>
+</body>
+</html>

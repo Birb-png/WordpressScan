@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plugin List Builder</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        /* Add some specific styles for this page */
+        main {
+            text-align: left;
+        }
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--text-medium);
+            font-weight: 600;
+        }
+        .form-group select,
+        .form-group input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 1px solid var(--bg-medium);
+            border-radius: 6px;
+            background-color: var(--bg-dark);
+            color: var(--text-light);
+            font-size: 1rem;
+        }
+        #build-button {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 6px;
+            background-color: var(--accent);
+            color: #fff;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        #message {
+            margin-top: 1rem;
+            font-size: 1.1rem;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">WPScanner Admin</div>
+        <nav>
+            <a href="/">Scanner</a>
+            <a href="/builder">Builder</a>
+        </nav>
+    </header>
+
+    <main>
+        <div class="results-card">
+            <h2>Build Plugin Database</h2>
+            <p>Use this tool to fetch plugin slugs from the WordPress.org API and save them to your local `plugin_list.txt` file for the scanner to use.</p>
+            
+            <form id="builder-form">
+                <div class="form-group">
+                    <label for="sort-by">Sort By</label>
+                    <select id="sort-by">
+                        <option value="popular" selected>Popular</option>
+                        <option value="new">Most Recent (New)</option>
+                        <option value="featured">Featured</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="total-plugins">Total Number of Plugins to Fetch</label>
+                    <input type="number" id="total-plugins" value="1000" min="100" step="100">
+                </div>
+                
+                <button type="submit" id="build-button">Start Building List</button>
+            </form>
+            
+            <div id="message" class="hidden success"></div>
+        </div>
+    </main>
+
+    <script>
+        const builderForm = document.getElementById('builder-form');
+        const buildButton = document.getElementById('build-button');
+        const sortBy = document.getElementById('sort-by');
+        const totalPlugins = document.getElementById('total-plugins');
+        const messageDiv = document.getElementById('message');
+
+        builderForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const postData = {
+                sort_by: sortBy.value,
+                total_plugins: parseInt(totalPlugins.value, 10)
+            };
+            
+            buildButton.disabled = true;
+            buildButton.textContent = 'Building...';
+            messageDiv.classList.add('hidden');
+
+            try {
+                const response = await fetch('/run-builder', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(postData)
+                });
+                
+                const result = await response.json();
+                
+                messageDiv.textContent = result.message;
+                messageDiv.classList.remove('hidden');
+
+            } catch (error) {
+                messageDiv.textContent = `Error: ${error}`;
+                messageDiv.classList.remove('hidden');
+            } finally {
+                buildButton.disabled = false;
+                buildButton.textContent = 'Start Building List';
+            }
+        });
+    </script>
+</body>
+</html>
