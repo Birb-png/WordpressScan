@@ -5,6 +5,7 @@ from typing import Optional, Dict, List
 from urllib.parse import urljoin
 import json
 from concurrent.futures import ThreadPoolExecutor
+from distutils.version import LooseVersion
 
 class WordPressScanner:
     
@@ -85,6 +86,10 @@ class WordPressScanner:
         return result
 
     def get_plugin_cves(self, plugin_slug: str, version: Optional[str] = None) -> Dict[str, any]:
+        """
+        Task 003: Get CVE info.
+        NEW LOGIC: Checks free API first. Only uses paid API if plugin is outdated.
+        """
         result = {
             'plugin_slug': plugin_slug,
             'version': version,
@@ -94,8 +99,32 @@ class WordPressScanner:
             'source': 'N/A'
         }
         api_token = os.environ.get('WPSCAN_API_TOKEN') 
-        if api_token:
-            result['source'] = 'WPScan API'
+
+        # --- Step 1: Check free API first to see if plugin is outdated ---
+        result['source'] = 'WordPress.org API'
+        try:
+            wp_api_url = f'https://api.wordpress.org/plugins/info/1.0/{plugin_slug}.json'
+            wp_response = self.session.get(wp_api_url, timeout=self.timeout)
+            
+            if wp_response.status_code == 200:
+                plugin_data = wp_response.json()
+                result['latest_version'] = plugin_data.get('version')
+                if version and result['latest_version']:
+                    result['is_outdated'] = LooseVersion(version) < LooseVersion(result['latest_version'])
+            else:
+                # If this API fails, we must assume it's outdated to be safe too
+                result['is_outdated'] = True 
+        except Exception:
+            # any error assume it's outdated to trigger the CVE scan
+            result['is_outdated'] = True
+            pass 
+
+        # --- Step 2: If it's outdated (or we couldn't check) AND we have a token, get CVEs ---
+        # the (not result['latest_version'] and version) part handles plugins not on wordpress.org
+        is_unknown = (not result['latest_version'] and version)
+        
+        if (result['is_outdated'] or is_unknown) and api_token:
+            result['source'] = 'WPScan API (Outdated)'
             api_url = f'https://wpscan.com/api/v3/plugins/{plugin_slug}'
             headers = {'Authorization': f'Token token={api_token}'}
             try:
@@ -103,29 +132,47 @@ class WordPressScanner:
                 if api_response.status_code == 200:
                     data = api_response.json()
                     plugin_data = data.get(plugin_slug, {})
-                    result['latest_version'] = plugin_data.get('latest_version')
-                    if version and result['latest_version']:
-                        result['is_outdated'] = version != result['latest_version']
+                    
+                    # We trust the WPScan latest_version more, so update it..
+                    if plugin_data.get('latest_version'):
+                        result['latest_version'] = plugin_data.get('latest_version')
+                        if version and result['latest_version']:
+                            result['is_outdated'] = LooseVersion(version) < LooseVersion(result['latest_version'])
+
+                    # --- IMPROVEMENT: Only show relevant CVEs ---
                     for vuln in plugin_data.get('vulnerabilities', []):
-                        result['vulnerabilities'].append({
-                            'title': vuln.get('title'),
-                            'cve': vuln.get('cve'),
-                            'fixed_in': vuln.get('fixed_in')
-                        })
-                return result
+                        fixed_in_version = vuln.get('fixed_in')
+                        
+                        if not fixed_in_version:
+                            # Vulnerability is not fixed, so it's relevant
+                            result['vulnerabilities'].append({
+                                'title': vuln.get('title'),
+                                'cve': vuln.get('cve'),
+                                'fixed_in': 'Not fixed'
+                            })
+                        elif version:
+                            try:
+                                # show only if less than fixed version
+                                if LooseVersion(version) < LooseVersion(fixed_in_version):
+                                    result['vulnerabilities'].append({
+                                        'title': vuln.get('title'),
+                                        'cve': vuln.get('cve'),
+                                        'fixed_in': fixed_in_version
+                                    })
+                            except:
+
+                                result['vulnerabilities'].append({
+                                        'title': vuln.get('title'),
+                                        'cve': vuln.get('cve'),
+                                        'fixed_in': fixed_in_version
+                                    })
             except Exception as e:
                 result['error'] = f"WPScan API error: {str(e)}"
-        result['source'] = 'WordPress.org API'
-        try:
-            wp_api_url = f'https://api.wordpress.org/plugins/info/1.0/{plugin_slug}.json'
-            wp_response = self.session.get(wp_api_url, timeout=self.timeout)
-            if wp_response.status_code == 200:
-                plugin_data = wp_response.json()
-                result['latest_version'] = plugin_data.get('version')
-                if version and result['latest_version']:
-                    result['is_outdated'] = version != result['latest_version']
-        except:
-            pass 
+        
+        # the plugin was up-to-date AND we have a token, we skipped the CVE scan.
+        if not result['is_outdated'] and api_token:
+            result['source'] = 'WordPress.org API (Up to date)'
+
         return result
     
     
